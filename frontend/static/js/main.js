@@ -14,7 +14,8 @@ function getCookie(name) {
     return cookieValue;
 }
 const csrftoken = getCookie('csrftoken');
-
+var activeItem = null;
+var list_snapshot = [];
 
 function buildList(){
     var wrapper = document.getElementById('list-wrapper')
@@ -28,10 +29,22 @@ function buildList(){
 
         var list = data;
         for(var i in list){
+
+            try{
+                document.getElementById(`data-row-${i}`).remove();
+            }catch(err){
+
+            }
+
+            var title = `<span class="title">${list[i].title} </span>`;
+            if(list[i].completed == true){
+                title = `<strike class="title">${list[i].title}</strike>`;
+            }
+
             var item = `
             <div id="data-row-${i}" class="task-wrapper flex-wrapper">
               <div style="flex:7">
-               <span class="title">${list[i].title}</span>
+               ${title}
               </div>
               <div style="flex:1">
                <button class="btn btn-sm btn-outline-info edit">Edit</button>
@@ -41,7 +54,45 @@ function buildList(){
               </div>
             </div>
             `
-            wrapper.innerHTML += item
+            wrapper.innerHTML += item;
+
+          
+        
+        }
+        if(list_snapshot.length>list.length){
+            for(var i = list.length; i<list_snapshot.length; i++)
+            {
+                var row = document.getElementById(`data-row-${i}`);
+                if(row){
+                    row.remove();
+                }
+            }
+        }
+
+        list_snapshot = list
+
+        for(var i in list){
+            var editBtn = document.getElementsByClassName('edit')[i];
+            var deleteBtn = document.getElementsByClassName('delete')[i];
+            title = document.getElementsByClassName('title')[i];
+
+            editBtn.addEventListener('click',(function(item){
+                return function(){
+                    editItem(item);
+                }
+            })(list[i]))
+
+            deleteBtn.addEventListener('click',(function(item){
+                return function(){
+                    deleteItem(item);
+                }
+            })(list[i]))
+
+            title.addEventListener('click',(function(item){
+                return function(){
+                    strikeUnstrike(item);
+                }
+            })(list[i]))
         }
     })
 
@@ -52,7 +103,12 @@ var form = document.getElementById('form-wrapper');
 form.addEventListener('submit', function(e){
     e.preventDefault()
     console.log('Form Submitted')
-    var url = 'http://127.0.0.1:8000/api/task-create/'
+    var url = `http://127.0.0.1:8000/api/task-create/`;
+
+    if(activeItem != null){
+        var url = `http://127.0.0.1:8000/api/task-update/${activeItem.id}/`;
+        activeItem = null;
+    }
     var title = document.getElementById('title').value;
     fetch(url, {
         method: 'POST',
@@ -67,3 +123,41 @@ form.addEventListener('submit', function(e){
         document.getElementById('form').reset();
     })
 })
+
+function editItem(item){
+    console.log('Item clicked:',item);
+    activeItem = item;
+    document.getElementById('title').value = activeItem.title;
+}
+
+function deleteItem(item){
+    console.log('Delete clicked');
+    fetch(`http://127.0.0.1:8000/api/task-delete/${item.id}/` , {
+        method: 'DELETE',
+        headers:{
+            'Content-type':'application/json',
+            'X-CSRFToken':csrftoken,
+        },
+    }).then((response)=> {
+        buildList();
+    })
+    
+}
+
+function strikeUnstrike(item){
+    console.log('Strike clicked');
+    item.completed = !item.completed;
+
+    fetch(`http://127.0.0.1:8000/api/task-update/${item.id}/` , {
+        method: 'POST',
+        headers:{
+            'Content-type':'application/json',
+            'X-CSRFToken':csrftoken,
+        },
+        body:JSON.stringify({'title':item.title, 'completed':item.completed})
+    }).then((response)=> {
+        buildList();
+    })
+    
+}
+
